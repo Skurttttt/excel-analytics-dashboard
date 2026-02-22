@@ -1,0 +1,100 @@
+/* styles.css */
+
+/* Premium dark base */
+:root{
+  --bg: #070B14;
+  --panel: rgba(15, 23, 42, 0.35);   /* slate-900/35 */
+  --panel2: rgba(2, 6, 23, 0.35);    /* slate-950/35 */
+  --border: rgba(255,255,255,.10);
+  --border2: rgba(255,255,255,.06);
+  --text: #e5e7eb;
+  --muted: rgba(148,163,184,.85);
+  --glow-indigo: 99,102,241;
+  --glow-cyan: 34,211,238;
+}
+
+/* Background corner glows */
+body{
+  background:
+    radial-gradient(900px 500px at 10% -10%, rgba(var(--glow-indigo), .18), transparent 55%),
+    radial-gradient(800px 480px at 95% 0%, rgba(var(--glow-cyan), .12), transparent 60%),
+    radial-gradient(900px 600px at 80% 110%, rgba(139,92,246,.10), transparent 65%),
+    var(--bg);
+}
+
+/* Glass panel feel */
+.glass{
+  background: linear-gradient(180deg, rgba(15,23,42,.42), rgba(2,6,23,.25));
+  border: 1px solid var(--border);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.03) inset,
+    0 16px 40px rgba(0,0,0,.35);
+  backdrop-filter: blur(12px);
+}
+
+/* Subtle hover lift */
+.lift{
+  transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease, border-color .18s ease;
+}
+.lift:hover{
+  transform: translateY(-2px);
+  border-color: rgba(255,255,255,.14);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.05) inset,
+    0 18px 50px rgba(0,0,0,.45),
+    0 0 26px rgba(var(--glow-indigo), .16);
+}
+
+/* Accent top line (for cards/panels) */
+.accent-line{
+  position: relative;
+}
+.accent-line::before{
+  content:"";
+  position:absolute;
+  left:0; right:0; top:0;
+  height:2px;
+  background: linear-gradient(90deg,
+    rgba(var(--glow-indigo), .75),
+    rgba(139,92,246,.55),
+    rgba(var(--glow-cyan), .55)
+  );
+  opacity:.85;
+}
+
+/* Premium pill buttons */
+.btn-pill{
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.04);
+  box-shadow: 0 10px 30px rgba(0,0,0,.30);
+  transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+.btn-pill:hover{
+  background: rgba(255,255,255,.07);
+  box-shadow: 0 10px 30px rgba(0,0,0,.35), 0 0 26px rgba(var(--glow-indigo), .18);
+  transform: translateY(-1px);
+}
+
+/* Primary CTA */
+.btn-primary{
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(99,102,241,.95), rgba(79,70,229,.92));
+  box-shadow: 0 12px 34px rgba(0,0,0,.40), 0 0 28px rgba(var(--glow-indigo), .22);
+  transition: transform .18s ease, filter .18s ease, box-shadow .18s ease;
+}
+.btn-primary:hover{
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow: 0 14px 40px rgba(0,0,0,.45), 0 0 34px rgba(var(--glow-indigo), .28);
+}
+
+/* KPI number typography */
+.kpi-value{
+  letter-spacing: -0.02em;
+}
+
+/* Softer chart gridlines look */
+canvas{
+  image-rendering: auto;
+}
