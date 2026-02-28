@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3000;
 // Serve frontend (public/)
 app.use(express.static(path.join(__dirname, "public")));
 
-// Ensure uploads folder exists (Render ephemeral disk is OK)
+// Ensure uploads folder exists
 const UPLOAD_DIR = path.join(__dirname, "uploads");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -29,11 +29,20 @@ function fileFilter(req, file, cb) {
 
 const upload = multer({ storage, fileFilter });
 
-// Helpers
+// ✅ FIXED toNumber: empty string does NOT become 0
 function toNumber(v) {
   if (v === null || v === undefined) return null;
-  if (typeof v === "number") return v;
-  const cleaned = String(v).replace(/[₱,$\s]/g, "").replace(/,/g, "");
+
+  if (typeof v === "string") {
+    const raw = v.trim();
+    if (!raw || raw === "-" || raw === "—") return null;
+  }
+
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+
+  const cleaned = String(v).replace(/[₱,$\s]/g, "").replace(/,/g, "").trim();
+  if (!cleaned) return null;
+
   const n = Number(cleaned);
   return Number.isFinite(n) ? n : null;
 }
@@ -43,6 +52,19 @@ function safeDivide(a, b) {
   return a / b;
 }
 
+function sumFinite(arr) {
+  return (arr || []).filter(Number.isFinite).reduce((a, b) => a + b, 0);
+}
+function countFinite(arr) {
+  return (arr || []).filter(Number.isFinite).length;
+}
+function avgFinite(arr) {
+  // ✅ ignore zeros too (blank months sometimes end up as 0 in messy files)
+  const nums = (arr || []).filter((n) => Number.isFinite(n) && n > 0);
+  if (!nums.length) return null;
+  return nums.reduce((a, b) => a + b, 0) / nums.length;
+}
+
 function parseOverviewStyle(aoa) {
   let headerRowIndex = -1;
 
@@ -50,7 +72,7 @@ function parseOverviewStyle(aoa) {
     const row = aoa[r] || [];
     const dateLikeCount = row.slice(1).filter((cell) => {
       if (cell instanceof Date) return true;
-      if (typeof cell === "number") return cell > 20000 && cell < 60000; // Excel date serial range
+      if (typeof cell === "number") return cell > 20000 && cell < 60000;
       if (typeof cell === "string") return /\b(20\d{2}|19\d{2})\b/.test(cell);
       return false;
     }).length;
@@ -109,33 +131,44 @@ function computeKPIsFromSeries(labels, series) {
   const keyMsgs = findKey("No. of Messages") || findKey("Messages");
   const keyRevenue = findKey("Total Revenue") || findKey("Revenue");
   const keyCustomers = findKey("No. of Customers") || findKey("Customers");
+  const keyCAC = findKey("CAC"); // ✅ CAC row
 
-  const sumOf = (arr) => (arr || []).filter(Number.isFinite).reduce((a, b) => a + b, 0);
-  const countMonths = (arr) => (arr || []).filter(Number.isFinite).length;
+  const spentArr = keySpent ? series[keySpent] : [];
+  const msgArr = keyMsgs ? series[keyMsgs] : [];
+  const revArr = keyRevenue ? series[keyRevenue] : [];
+  const custArr = keyCustomers ? series[keyCustomers] : [];
+  const cacArr = keyCAC ? series[keyCAC] : [];
 
-  const spent = keySpent ? sumOf(series[keySpent]) : null;
-  const messages = keyMsgs ? sumOf(series[keyMsgs]) : null;
-  const revenue = keyRevenue ? sumOf(series[keyRevenue]) : null;
-  const customers = keyCustomers ? sumOf(series[keyCustomers]) : null;
+  const spent = keySpent ? sumFinite(spentArr) : null;
+  const messages = keyMsgs ? sumFinite(msgArr) : null;
+  const revenue = keyRevenue ? sumFinite(revArr) : null;
+  const customers = keyCustomers ? sumFinite(custArr) : null;
 
-  const months = Math.max(
-    countMonths(keySpent ? series[keySpent] : []),
-    countMonths(keyRevenue ? series[keyRevenue] : []),
-    1
-  );
+  // per-metric month counts
+  const spentMonths = Math.max(countFinite(spentArr), 1);
+  const msgMonths = Math.max(countFinite(msgArr), 1);
+  const revMonths = Math.max(countFinite(revArr), 1);
+  const custMonths = Math.max(countFinite(custArr), 1);
+
+  const costPerMessage = safeDivide(spent, messages);
+  const roas = safeDivide(revenue, spent);
+
+  // ✅ FORCE CAC = Excel average of CAC row values (sum ÷ count of months with CAC)
+  const cacExcelStyle = avgFinite(cacArr);
+  const cacBlended = safeDivide(spent, customers);
 
   return {
     totals: { spent, messages, revenue, customers },
     averagesPerMonth: {
-      spent: spent !== null ? spent / months : null,
-      messages: messages !== null ? messages / months : null,
-      revenue: revenue !== null ? revenue / months : null,
-      customers: customers !== null ? customers / months : null,
+      spent: spent !== null ? spent / spentMonths : null,
+      messages: messages !== null ? messages / msgMonths : null,
+      revenue: revenue !== null ? revenue / revMonths : null,
+      customers: customers !== null ? customers / custMonths : null,
     },
     kpis: {
-      costPerMessage: spent !== null && messages !== null ? safeDivide(spent, messages) : null,
-      roas: spent !== null && revenue !== null ? safeDivide(revenue, spent) : null,
-      cac: spent !== null && customers !== null ? safeDivide(spent, customers) : null,
+      costPerMessage,
+      roas,
+      cac: Number.isFinite(cacExcelStyle) ? cacExcelStyle : cacBlended,
     },
   };
 }
@@ -147,7 +180,8 @@ app.post("/api/upload", upload.single("excel"), (req, res) => {
 
     const workbook = XLSX.readFile(req.file.path, { cellDates: true });
     const sheetName =
-      workbook.SheetNames.find((n) => n.toLowerCase() === "overview") || workbook.SheetNames[0];
+      workbook.SheetNames.find((n) => n.toLowerCase() === "overview") ||
+      workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
 
     const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true });
@@ -155,7 +189,7 @@ app.post("/api/upload", upload.single("excel"), (req, res) => {
 
     const tablePreview = { sheetName, rows: aoa.slice(0, 50) };
 
-    // Delete uploaded file after parsing (good for Render)
+    // delete uploaded file after parsing
     fs.unlink(req.file.path, () => {});
 
     if (!parsed) {
@@ -175,6 +209,4 @@ app.post("/api/upload", upload.single("excel"), (req, res) => {
   }
 });
 
-// Render requires listening on process.env.PORT
 app.listen(PORT, () => console.log(`✅ Server running on http://localhost:${PORT}`));
-

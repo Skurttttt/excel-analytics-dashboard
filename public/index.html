@@ -11,193 +11,221 @@
     <!-- Chart.js CDN -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- ✅ Export PDF dependencies (screenshot-style) -->
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <!-- Export PDF deps -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <link rel="stylesheet" href="./styles.css" />
   </head>
 
   <body class="min-h-screen bg-slate-950 text-slate-100">
-    <!-- Top bar -->
-    <header class="sticky top-0 z-10 border-b border-white/10 bg-slate-950/70 backdrop-blur">
-      <div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
-        <div class="flex items-center gap-3">
-          <div class="h-10 w-10 rounded-xl bg-indigo-500/20 ring-1 ring-white/10 flex items-center justify-center">
-            <span class="font-bold text-indigo-300">X</span>
-          </div>
-          <div>
-            <h1 class="text-lg font-semibold leading-tight">Digital Homie Analytics</h1>
-            <p class="text-xs text-slate-400">Upload .xlsx → KPIs, Charts, Table (No DB)</p>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-3">
-          <button
-            id="exportPdfBtn"
-            class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-white/10"
+    <!-- ✅ Wrap header + dashboard so PDF includes header -->
+    <div id="pdfRoot">
+      <!-- Top bar -->
+      <header
+        id="topHeader"
+        class="sticky top-0 z-10 border-b border-white/10 bg-slate-950/70 backdrop-blur"
+      >
+        <div class="mx-auto max-w-7xl px-4 py-4">
+          <!-- ✅ 3-column header -->
+          <div
+            class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
           >
-            Export as PDF
-          </button>
+            <!-- Left -->
+            <div class="flex items-center gap-3 md:w-1/3">
+              <div
+                class="h-10 w-10 rounded-xl bg-indigo-500/20 ring-1 ring-white/10 flex items-center justify-center"
+              >
+                <span class="font-bold text-indigo-300">X</span>
+              </div>
+              <div>
+                <h1 class="text-lg font-semibold leading-tight">
+                  Digital Homie Analytics
+                </h1>
+                <p class="text-xs text-slate-400">
+                  Upload .xlsx → KPIs, Charts, Table (No DB)
+                </p>
+              </div>
+            </div>
 
-          <div class="text-xs text-slate-400 hidden sm:block">
-            Built with Node.js + SheetJS + Chart.js
-          </div>
-        </div>
-      </div>
-    </header>
+            <!-- Center (Client Name) -->
+            <div class="md:w-1/3 flex justify-center">
+              <!-- ✅ Added id so export mode can style this -->
+              <div id="clientNameWrap" class="w-full md:max-w-xs">
+                <input
+                  id="clientNameInput"
+                  type="text"
+                  placeholder="Name/Company"
+                  class="mt-1 w-full rounded-xl bg-slate-900/40 border border-white/10 px-3 pt-1 pb-3 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-center leading-tight"
+                />
+              </div>
+            </div>
 
-    <!-- ✅ Wrap the whole dashboard content for screenshot export -->
-    <main id="dashboardRoot" class="mx-auto max-w-7xl px-4 py-8">
-      <!-- Upload Card -->
-      <section class="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-sm">
-        <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h2 class="text-base font-semibold">Upload your Excel file</h2>
-            <p class="text-sm text-slate-400">
-              Supported: <span class="text-slate-200 font-medium">.xlsx</span>
-              (Overview-style or normal header-row datasets)
-            </p>
-          </div>
+            <!-- Right -->
+            <div class="md:w-1/3 flex items-center justify-end gap-3">
+              <button
+                id="exportPdfBtn"
+                class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-white/10 transition-colors"
+              >
+                Export as PDF
+              </button>
 
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <input
-              id="excelFile"
-              type="file"
-              accept=".xlsx"
-              class="block w-full cursor-pointer rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-indigo-500"
-            />
-            <button
-              id="uploadBtn"
-              class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Upload & Generate
-            </button>
-          </div>
-        </div>
-
-        <div id="status" class="mt-4 text-sm text-slate-400"></div>
-      </section>
-
-      <!-- KPI Cards -->
-      <section class="mt-8">
-        <div class="mb-3 flex items-center justify-between">
-          <h3 class="text-base font-semibold">KPI Summary</h3>
-          <p id="sheetLabel" class="text-xs text-slate-400"></p>
-        </div>
-
-        <!-- KPI one row (horizontal scroll if many) -->
-        <div id="kpiGrid" class="grid gap-4 grid-flow-col auto-cols-max overflow-x-auto pb-2">
-          <!-- cards injected by JS -->
-        </div>
-      </section>
-
-      <!-- Charts -->
-      <section class="mt-8 grid gap-4 lg:grid-cols-2">
-        <!-- Ad Spent -->
-        <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
-          <div class="mb-3 flex items-center justify-between">
-            <h4 class="font-semibold">Trend: Ad Spent</h4>
-            <span class="text-xs text-slate-400">Line chart</span>
-          </div>
-          <canvas id="chartSpent" height="130"></canvas>
-        </div>
-
-        <!-- Revenue -->
-        <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
-          <div class="mb-3 flex items-center justify-between">
-            <h4 class="font-semibold">Trend: Revenue</h4>
-            <span class="text-xs text-slate-400">Line chart</span>
-          </div>
-          <canvas id="chartRevenue" height="130"></canvas>
-        </div>
-
-        <!-- Messages -->
-        <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
-          <div class="mb-3 flex items-center justify-between">
-            <h4 class="font-semibold">Messages</h4>
-            <span class="text-xs text-slate-400">Bar chart</span>
-          </div>
-          <canvas id="chartMessages" height="130"></canvas>
-        </div>
-
-        <!-- Cost Per Message -->
-        <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
-          <div class="mb-3 flex items-center justify-between">
-            <h4 class="font-semibold">Trend: Cost Per Message</h4>
-            <span class="text-xs text-slate-400">Line chart</span>
-          </div>
-          <canvas id="chartCostPerMessage" height="130"></canvas>
-        </div>
-
-        <!-- Spend vs Revenue Share (make pie smaller inside card) -->
-        <div class="rounded-2xl border border-white/10 bg-white/5 p-5 h-[420px]">
-          <div class="mb-3 flex items-center justify-between">
-            <h4 class="font-semibold">Spend vs Revenue Share</h4>
-            <span class="text-xs text-slate-400">Pie chart</span>
-          </div>
-
-          <div class="flex items-center justify-center h-[300px]">
-            <div class="w-[240px] h-[240px]">
-              <canvas id="chartPie"></canvas>
+              <div class="text-xs text-slate-400 hidden sm:block">
+                Built with Node.js + SheetJS + Chart.js
+              </div>
             </div>
           </div>
         </div>
+      </header>
 
-        <!-- Recommendations -->
-        <div class="rounded-2xl border border-white/10 bg-white/5 p-5 h-[420px]">
+      <!-- Dashboard root -->
+      <main id="dashboardRoot" class="mx-auto max-w-7xl px-4 py-8">
+        <!-- Upload Card -->
+        <section
+          class="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-sm"
+        >
+          <div
+            class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between"
+          >
+            <div>
+              <h2 class="text-base font-semibold">Upload your Excel file</h2>
+              <p class="text-sm text-slate-400">
+                Supported:
+                <span class="text-slate-200 font-medium">.xlsx</span>
+                (Overview-style or normal header-row datasets)
+              </p>
+            </div>
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <input
+                id="excelFile"
+                type="file"
+                accept=".xlsx"
+                class="block w-full cursor-pointer rounded-xl border border-white/10 bg-slate-900/40 px-3 py-2 text-sm text-slate-200 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-indigo-500"
+              />
+              <button
+                id="uploadBtn"
+                class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Upload & Generate
+              </button>
+            </div>
+          </div>
+
+          <div id="status" class="mt-4 text-sm text-slate-400"></div>
+        </section>
+
+        <!-- KPI Cards -->
+        <section class="mt-8">
           <div class="mb-3 flex items-center justify-between">
-            <h4 class="font-semibold">Recommendations</h4>
-            <span class="text-xs text-slate-400">Rule-based</span>
+            <h3 class="text-base font-semibold">KPI Summary</h3>
+            <p id="sheetLabel" class="text-xs text-slate-400"></p>
           </div>
 
-          <div class="flex items-center gap-2 text-sm mb-3">
-            <span class="text-slate-400">Target CAC:</span>
-            <input
-              id="targetCacInput"
-              type="number"
-              value="2000"
-              class="w-28 rounded-lg bg-slate-900 border border-white/10 px-2 py-1 text-white text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
+          <div
+            id="kpiGrid"
+            class="grid gap-4 grid-flow-col auto-cols-max overflow-x-auto pb-2"
+          ></div>
+        </section>
+
+        <!-- Charts -->
+        <section class="mt-8 grid gap-4 lg:grid-cols-2">
+          <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <div class="mb-3 flex items-center justify-between">
+              <h4 class="font-semibold">Trend: Ad Spent</h4>
+              <span class="text-xs text-slate-400">Line chart</span>
+            </div>
+            <canvas id="chartSpent" height="130"></canvas>
           </div>
 
-          <div id="recommendationBox" class="space-y-2 text-sm">
-            <p class="text-slate-400">Upload a file to generate recommendations.</p>
+          <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <div class="mb-3 flex items-center justify-between">
+              <h4 class="font-semibold">Trend: Revenue</h4>
+              <span class="text-xs text-slate-400">Line chart</span>
+            </div>
+            <canvas id="chartRevenue" height="130"></canvas>
           </div>
-        </div>
-      </section>
 
-      <!-- Table Preview -->
-      <section class="mt-8 rounded-2xl border border-white/10 bg-white/5 p-5 min-h-[360px]">
-        <div class="mb-3 flex items-center justify-between">
-          <h3 class="text-base font-semibold">Data Preview</h3>
-          <p class="text-xs text-slate-400">First 50 rows from detected sheet</p>
-        </div>
-
-        <div class="overflow-auto rounded-xl border border-white/10">
-          <!-- ✅ Table has border + grid lines -->
-          <table class="min-w-full text-sm border border-white/10">
-            <tbody id="tableBody">
-              <!-- injected by JS -->
-            </tbody>
-          </table>
-        </div>
-
-        <!-- ✅ Notes box (under Data Preview) -->
-        <div class="mt-4">
-          <div class="mb-2 flex items-center justify-between">
-            <h4 class="text-sm font-semibold">Notes</h4>
-            <span class="text-xs text-slate-400">Auto-saved</span>
+          <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <div class="mb-3 flex items-center justify-between">
+              <h4 class="font-semibold">Messages</h4>
+              <span class="text-xs text-slate-400">Bar chart</span>
+            </div>
+            <canvas id="chartMessages" height="130"></canvas>
           </div>
-          <textarea
-            id="notesBox"
-            rows="4"
-            placeholder="Write your notes here (insights, next actions, summary)..."
-            class="w-full rounded-xl bg-slate-900/40 border border-white/10 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          ></textarea>
-        </div>
-      </section>
-    </main>
+
+          <div class="rounded-2xl border border-white/10 bg-white/5 p-5">
+            <div class="mb-3 flex items-center justify-between">
+              <h4 class="font-semibold">Trend: Cost Per Message</h4>
+              <span class="text-xs text-slate-400">Line chart</span>
+            </div>
+            <canvas id="chartCostPerMessage" height="130"></canvas>
+          </div>
+
+          <div class="rounded-2xl border border-white/10 bg-white/5 p-5 h-[420px]">
+            <div class="mb-3 flex items-center justify-between">
+              <h4 class="font-semibold">Spend vs Revenue Share</h4>
+              <span class="text-xs text-slate-400">Pie chart</span>
+            </div>
+            <div class="flex items-center justify-center h-[300px]">
+              <div class="w-[240px] h-[240px]">
+                <canvas id="chartPie"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-white/10 bg-white/5 p-5 h-[420px]">
+            <div class="mb-3 flex items-center justify-between">
+              <h4 class="font-semibold">Recommendations</h4>
+              <span class="text-xs text-slate-400">Rule-based</span>
+            </div>
+
+            <div class="flex items-center gap-2 text-sm mb-3">
+              <span class="text-slate-400">Target CAC:</span>
+              <input
+                id="targetCacInput"
+                type="number"
+                value="2000"
+                class="w-28 rounded-lg bg-slate-900 border border-white/10 px-2 py-1 text-white text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div id="recommendationBox" class="space-y-2 text-sm">
+              <p class="text-slate-400">Upload a file to generate recommendations.</p>
+            </div>
+          </div>
+        </section>
+
+        <!-- Table Preview -->
+        <section
+          class="mt-8 rounded-2xl border border-white/10 bg-white/5 p-5 min-h-[360px]"
+        >
+          <div class="mb-3 flex items-center justify-between">
+            <h3 class="text-base font-semibold">Data Preview</h3>
+            <p class="text-xs text-slate-400">First 50 rows from detected sheet</p>
+          </div>
+
+          <div class="overflow-auto rounded-xl border border-white/10">
+            <table class="min-w-full text-sm border border-white/10">
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
+
+          <div class="mt-4">
+            <div class="mb-2 flex items-center justify-between">
+              <h4 class="text-sm font-semibold">Notes</h4>
+              <span class="text-xs text-slate-400">Auto-saved</span>
+            </div>
+            <textarea
+              id="notesBox"
+              rows="4"
+              placeholder="Write your notes here (insights, next actions, summary)..."
+              class="w-full rounded-xl bg-slate-900/40 border border-white/10 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            ></textarea>
+          </div>
+        </section>
+      </main>
+    </div>
 
     <script src="./app.js"></script>
   </body>
